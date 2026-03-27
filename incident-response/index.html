@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACP Demo — Incident Response Dashboard</title>
+<style>
+  :root { --accent: #da3633; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; display: flex; height: 100vh; }
+
+  .form-panel { flex: 1; padding: 32px; overflow-y: auto; border-right: 1px solid #30363d; }
+  .form-panel h1 { font-size: 20px; margin-bottom: 4px; color: var(--accent); }
+  .form-panel p.sub { color: #8b949e; margin-bottom: 16px; font-size: 14px; }
+
+  .screen-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+  .screen-tabs button {
+    padding: 6px 16px; border: 1px solid #30363d; border-radius: 6px 6px 0 0; background: #161b22;
+    color: #8b949e; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .screen-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 4px; }
+  .field label .req { color: #f85149; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field.highlight input, .field.highlight select, .field.highlight textarea { border-color: #d29922; background: #1c1e08; }
+  .field input[readonly], .field textarea[readonly] { background: #0d1117; color: #8b949e; cursor: default; }
+
+  .actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .actions button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: #30363d; color: #e6edf3; }
+  .btn-destructive { background: #da3633; color: #fff; border: 1px solid #f85149 !important; }
+
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200;
+    animation: fadeIn 0.3s; display: none;
+  }
+  .toast.success { background: #238636; color: #fff; }
+  .toast.error { background: #da3633; color: #fff; }
+  .toast.info { background: #1f6feb; color: #fff; }
+  .toast.warning { background: #d29922; color: #fff; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+  @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  .chat-status.thinking::after { content: ''; animation: dots 1.2s infinite steps(1); }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px;
+    width: 440px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .modal input { width: 100%; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 14px; margin-bottom: 12px; }
+  .modal .modal-close { padding: 6px 16px; background: #30363d; color: #e6edf3; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+  .chat-panel { width: 380px; display: flex; flex-direction: column; }
+  .chat-header { padding: 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; }
+  .chat-status { font-size: 12px; color: #8b949e; font-weight: 400; margin-left: 8px; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+  .msg.user { background: #1f6feb; align-self: flex-end; }
+  .msg.agent { background: #21262d; align-self: flex-start; }
+  .msg.system { background: transparent; color: #8b949e; font-size: 12px; align-self: center; font-style: italic; }
+  .chat-input { display: flex; padding: 12px; border-top: 1px solid #30363d; gap: 8px; }
+  .chat-input input {
+    flex: 1; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none;
+  }
+  .chat-input button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .chat-input input:disabled, .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="form-panel">
+  <h1>Incident Response Dashboard</h1>
+  <p class="sub">Report and manage incidents with Sentinel, your AI incident commander.</p>
+
+  <nav class="screen-tabs">
+    <button class="active" data-tab="create">Create Incident</button>
+    <button data-tab="status_page">Status Page</button>
+    <button data-tab="war_room">War Room</button>
+  </nav>
+
+  <!-- Screen: Create -->
+  <div class="screen active" data-screen="create">
+    <div class="field" data-field="severity">
+      <label>Severity <span class="req">*</span></label>
+      <select id="severity">
+        <option value="">Select...</option>
+        <option value="P1">P1 — Critical</option>
+        <option value="P2">P2 — High</option>
+        <option value="P3">P3 — Medium</option>
+        <option value="P4">P4 — Low</option>
+      </select>
+    </div>
+    <div class="field" data-field="service">
+      <label>Affected Service <span class="req">*</span></label>
+      <select id="service">
+        <option value="">Select...</option>
+        <option value="Payment">Payment</option>
+        <option value="Auth">Auth</option>
+        <option value="API">API</option>
+        <option value="Database">Database</option>
+        <option value="CDN">CDN</option>
+      </select>
+    </div>
+    <div class="field" data-field="title">
+      <label>Incident Title <span class="req">*</span></label>
+      <input type="text" id="title" placeholder="Brief description of the incident">
+    </div>
+    <div class="field" data-field="description">
+      <label>Description</label>
+      <textarea id="description" placeholder="Detailed description of the incident..."></textarea>
+    </div>
+    <div class="field" data-field="impact">
+      <label>Impact</label>
+      <select id="impact">
+        <option value="">Select...</option>
+        <option value="total_outage">Total Outage</option>
+        <option value="partial_outage">Partial Outage</option>
+        <option value="degraded">Degraded Performance</option>
+        <option value="intermittent">Intermittent Issues</option>
+      </select>
+    </div>
+    <div class="field" data-field="reporter_name">
+      <label>Reporter Name</label>
+      <input type="text" id="reporter_name" placeholder="Jane Smith">
+    </div>
+    <div class="field" data-field="reporter_email">
+      <label>Reporter Email</label>
+      <input type="email" id="reporter_email" placeholder="jane@company.com">
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_create_incident">Create Incident</button>
+      <button class="btn-destructive" id="btn_page_oncall_create">Page On-Call</button>
+    </div>
+  </div>
+
+  <!-- Screen: Status Page -->
+  <div class="screen" data-screen="status_page">
+    <div class="field" data-field="status">
+      <label>Status <span class="req">*</span></label>
+      <select id="status">
+        <option value="">Select...</option>
+        <option value="Investigating">Investigating</option>
+        <option value="Identified">Identified</option>
+        <option value="Monitoring">Monitoring</option>
+        <option value="Resolved">Resolved</option>
+      </select>
+    </div>
+    <div class="field" data-field="customer_message">
+      <label>Customer Message</label>
+      <textarea id="customer_message" placeholder="Public-facing status update..."></textarea>
+    </div>
+    <div class="field" data-field="estimated_resolution">
+      <label>Estimated Resolution</label>
+      <input type="datetime-local" id="estimated_resolution">
+    </div>
+    <div class="field" data-field="affected_regions">
+      <label>Affected Regions</label>
+      <input type="text" id="affected_regions" placeholder="US-East, EU-West, APAC...">
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_update_status">Update Status</button>
+      <button class="btn-destructive" id="btn_resolve_incident">Resolve Incident</button>
+    </div>
+  </div>
+
+  <!-- Screen: War Room -->
+  <div class="screen" data-screen="war_room">
+    <div class="field" data-field="channel_name">
+      <label>Channel Name</label>
+      <input type="text" id="channel_name" readonly placeholder="#inc-0000">
+    </div>
+    <div class="field" data-field="commander">
+      <label>Incident Commander</label>
+      <input type="text" id="commander" placeholder="On-call engineer name">
+    </div>
+    <div class="field" data-field="responders">
+      <label>Responders</label>
+      <textarea id="responders" placeholder="List of responders..."></textarea>
+    </div>
+    <div class="field" data-field="runbook_link">
+      <label>Runbook Link</label>
+      <input type="text" id="runbook_link" placeholder="https://wiki.company.com/runbooks/...">
+    </div>
+    <div class="actions">
+      <button class="btn-destructive" id="btn_page_oncall_war">Page On-Call</button>
+      <button class="btn-secondary" id="btn_search_runbook">Search Runbooks</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Runbook Search -->
+<div class="modal-overlay" id="modal_runbook_search">
+  <div class="modal">
+    <h2>Search Runbooks</h2>
+    <input type="text" id="modal_runbook_input" placeholder="Search runbooks...">
+    <p style="color:#8b949e; font-size:13px; margin-bottom:12px;">Ask Sentinel to find the right runbook for this incident.</p>
+    <button class="modal-close" onclick="closeModal('runbook_search')">Close</button>
+  </div>
+</div>
+
+<div class="chat-panel">
+  <div class="chat-header">
+    Sentinel <span class="chat-status" id="conn-status">connecting...</span>
+  </div>
+  <div class="chat-messages" id="messages"></div>
+  <div class="chat-input">
+    <input type="text" id="chat-input" placeholder="Report an incident to Sentinel..." autofocus>
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WS_URL = "ws://localhost:__ACP_WS_PORT__/connect";
+const statusEl = document.getElementById("conn-status");
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("chat-input");
+const toastEl = document.getElementById("toast");
+
+let ws, streaming = "", busy = false, reconnectAttempts = 0;
+const MAX_RECONNECT = 5;
+
+function switchScreen(screenId) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".screen-tabs button").forEach(b => b.classList.remove("active"));
+  const screen = document.querySelector(`.screen[data-screen="${screenId}"]`);
+  const tab = document.querySelector(`.screen-tabs button[data-tab="${screenId}"]`);
+  if (screen) screen.classList.add("active");
+  if (tab) tab.classList.add("active");
+}
+document.querySelectorAll(".screen-tabs button").forEach(btn => {
+  btn.addEventListener("click", () => switchScreen(btn.dataset.tab));
+});
+
+function openModal(id) { document.getElementById("modal_" + id)?.classList.add("open"); }
+function closeModal(id) { document.getElementById("modal_" + id)?.classList.remove("open"); }
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  const _wsSend = ws.send.bind(ws);
+  ws.send = (data) => { const m = JSON.parse(data); console.log("[ACP →]", m.type, m); _wsSend(data); };
+  ws.onopen = () => { reconnectAttempts = 0; addSystemMsg("Connected to ACP server"); };
+  ws.onclose = () => {
+    statusEl.textContent = "disconnected";
+    if (reconnectAttempts < MAX_RECONNECT) {
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+      addSystemMsg(`Disconnected. Reconnecting in ${delay/1000}s... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      setTimeout(connect, delay);
+    } else { addSystemMsg("Connection lost. Reload the page to retry."); }
+  };
+  ws.onerror = () => {};
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+}
+
+function sendManifest() {
+  ws.send(JSON.stringify({
+    type: "manifest",
+    app: "incident-response",
+    currentScreen: "create",
+    persona: {
+      name: "Sentinel",
+      role: "incident response commander",
+      instructions: "CRITICAL RULE: You MUST fill ALL 3 screens (create, status_page, war_room) in one go. DO NOT stop or say Done until the war_room screen fields are filled.\n\nYou are Sentinel, a calm incident response commander.\n\nStep 1 — CREATE: set_field severity, service, title, description, impact, reporter_name, reporter_email. Then click_action create_incident. Then navigate to status_page.\nStep 2 — STATUS PAGE: set_field status, customer_message, estimated_resolution (use datetime like 2024-04-01T18:00), affected_regions. Then show_toast. Then navigate to war_room.\nStep 3 — WAR ROOM: set_field channel_name, commander, responders, runbook_link. Then show_toast success.\n\nYou are NOT done until Step 3 is complete."
+    },
+    screens: {
+      create: {
+        id: "create", label: "Create Incident",
+        fields: [
+          { id: "severity", type: "select", label: "Severity", required: true, options: [
+            { value: "P1", label: "P1 — Critical" }, { value: "P2", label: "P2 — High" },
+            { value: "P3", label: "P3 — Medium" }, { value: "P4", label: "P4 — Low" }
+          ]},
+          { id: "service", type: "select", label: "Affected Service", required: true, options: [
+            { value: "Payment", label: "Payment" }, { value: "Auth", label: "Auth" },
+            { value: "API", label: "API" }, { value: "Database", label: "Database" }, { value: "CDN", label: "CDN" }
+          ]},
+          { id: "title", type: "text", label: "Incident Title", required: true },
+          { id: "description", type: "textarea", label: "Description" },
+          { id: "impact", type: "select", label: "Impact", options: [
+            { value: "total_outage", label: "Total Outage" }, { value: "partial_outage", label: "Partial Outage" },
+            { value: "degraded", label: "Degraded Performance" }, { value: "intermittent", label: "Intermittent Issues" }
+          ]},
+          { id: "reporter_name", type: "text", label: "Reporter Name" },
+          { id: "reporter_email", type: "email", label: "Reporter Email" }
+        ],
+        actions: [
+          { id: "create_incident", label: "Create Incident" },
+          { id: "page_oncall", label: "Page On-Call", requiresConfirmation: true, destructive: true }
+        ]
+      },
+      status_page: {
+        id: "status_page", label: "Status Page",
+        fields: [
+          { id: "status", type: "select", label: "Status", required: true, options: [
+            { value: "Investigating", label: "Investigating" }, { value: "Identified", label: "Identified" },
+            { value: "Monitoring", label: "Monitoring" }, { value: "Resolved", label: "Resolved" }
+          ]},
+          { id: "customer_message", type: "textarea", label: "Customer Message" },
+          { id: "estimated_resolution", type: "datetime", label: "Estimated Resolution" },
+          { id: "affected_regions", type: "text", label: "Affected Regions" }
+        ],
+        actions: [
+          { id: "update_status", label: "Update Status" },
+          { id: "resolve_incident", label: "Resolve Incident", requiresConfirmation: true }
+        ]
+      },
+      war_room: {
+        id: "war_room", label: "War Room",
+        fields: [
+          { id: "channel_name", type: "text", label: "Channel Name", readOnly: true },
+          { id: "commander", type: "text", label: "Incident Commander" },
+          { id: "responders", type: "textarea", label: "Responders" },
+          { id: "runbook_link", type: "text", label: "Runbook Link" }
+        ],
+        actions: [
+          { id: "page_oncall", label: "Page On-Call", requiresConfirmation: true, destructive: true }
+        ],
+        modals: [
+          { id: "runbook_search", label: "Search Runbooks", searchable: true }
+        ]
+      }
+    }
+  }));
+}
+
+function handleMessage(msg) {
+  if (msg.type === "command") {
+    console.log("[ACP ←] command seq=" + msg.seq, msg.actions.map(a => `${a.do}(${a.field||a.screen||a.action||a.modal||""})${a.value!==undefined?"="+JSON.stringify(a.value):a.message?" msg="+JSON.stringify(a.message):""}`));
+  } else {
+    console.log("[ACP ←]", msg.type, msg.status || msg.message || "");
+  }
+  switch (msg.type) {
+    case "config": sendManifest(); break;
+    case "status":
+      statusEl.textContent = msg.status;
+      statusEl.className = "chat-status" + (msg.status === "thinking" || msg.status === "executing" ? " thinking" : "");
+      busy = msg.status !== "idle";
+      inputEl.disabled = busy;
+      document.getElementById("chat-send").disabled = busy;
+      if (!busy) inputEl.focus();
+      break;
+    case "chat":
+      if (msg.delta) { if (!streaming) { streaming = ""; startStream(); } streaming += msg.message; updateStream(streaming); }
+      else if (streamEl) { finalizeStream(); }
+      else { addAgentMsg(msg.message); }
+      break;
+    case "command": executeCommand(msg); break;
+    case "error": addSystemMsg("Error: " + msg.message); break;
+  }
+}
+
+function executeCommand(msg) {
+  const results = msg.actions.map((action, i) => {
+    try {
+      switch (action.do) {
+        case "set_field": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found: " + action.field };
+          if (el.readOnly) { el.value = String(action.value); flash(el); }
+          else {
+            const tag = el.tagName.toLowerCase();
+            const inputType = el.getAttribute("type") || "text";
+            if (tag === "select" || ["number", "date", "datetime-local"].includes(inputType)) {
+              el.value = String(action.value); flash(el);
+            } else { typewriter(el, String(action.value)); }
+          }
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          return { index: i, success: true };
+        }
+        case "clear": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found" };
+          el.value = ""; return { index: i, success: true };
+        }
+        case "click": {
+          addSystemMsg("Action: " + action.action);
+          if (action.action === "create_incident") {
+            showToast("Incident created", "success"); switchScreen("status_page");
+          } else if (action.action === "update_status") {
+            showToast("Status page updated", "success");
+          } else if (action.action === "resolve_incident") {
+            showToast("Incident resolved!", "success");
+          }
+          return { index: i, success: true };
+        }
+        case "navigate": {
+          console.log("[NAV]", document.querySelector(".screen.active")?.dataset.screen, "→", action.screen);
+          switchScreen(action.screen);
+          return { index: i, success: true };
+        }
+        case "show_toast": {
+          showToast(action.message, action.level || "info");
+          return { index: i, success: true };
+        }
+        case "ask_confirm": {
+          const confirmed = window.confirm(action.message || "Are you sure?");
+          ws.send(JSON.stringify({ type: "confirm", seq: msg.seq, confirmed }));
+          return { index: i, success: true };
+        }
+        case "open_modal": {
+          openModal(action.modal);
+          return { index: i, success: true };
+        }
+        case "close_modal": {
+          closeModal(action.modal);
+          return { index: i, success: true };
+        }
+        default: return { index: i, success: true };
+      }
+    } catch (err) { return { index: i, success: false, error: err.message }; }
+  });
+  ws.send(JSON.stringify({ type: "result", seq: msg.seq, results }));
+}
+
+function typewriter(el, value) {
+  el.value = ""; flash(el);
+  let i = 0;
+  const interval = setInterval(() => { el.value += value[i]; i++; if (i >= value.length) clearInterval(interval); }, 25);
+}
+function flash(el) {
+  const field = el.closest(".field");
+  if (field) { field.classList.add("highlight"); setTimeout(() => field.classList.remove("highlight"), 1500); }
+}
+
+function addAgentMsg(text) { addMsg(text, "agent"); }
+function addUserMsg(text) { addMsg(text, "user"); }
+function addSystemMsg(text) { addMsg(text, "system"); }
+function addMsg(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls; div.textContent = text;
+  messagesEl.appendChild(div); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+let streamEl = null;
+function startStream() { streamEl = document.createElement("div"); streamEl.className = "msg agent"; messagesEl.appendChild(streamEl); }
+function updateStream(text) { if (streamEl) { streamEl.textContent = text; messagesEl.scrollTop = messagesEl.scrollHeight; } }
+function finalizeStream() { streaming = ""; streamEl = null; }
+
+function showToast(msg, level) {
+  toastEl.textContent = msg; toastEl.className = "toast " + level;
+  toastEl.style.display = "block"; setTimeout(() => { toastEl.style.display = "none"; }, 3000);
+}
+
+function sendText() {
+  const text = inputEl.value.trim();
+  if (!text || !ws) return;
+  addUserMsg(text);
+  ws.send(JSON.stringify({ type: "text", message: text }));
+  inputEl.value = "";
+}
+
+document.getElementById("chat-send").addEventListener("click", sendText);
+inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
+
+// --- Button handlers ---
+document.getElementById("btn_create_incident").addEventListener("click", () => { showToast("Incident created", "success"); switchScreen("status_page"); });
+document.getElementById("btn_page_oncall_create").addEventListener("click", () => {
+  if (window.confirm("Page the on-call engineer? This will send an immediate alert.")) showToast("On-call engineer paged!", "warning");
+});
+document.getElementById("btn_update_status").addEventListener("click", () => showToast("Status page updated", "success"));
+document.getElementById("btn_resolve_incident").addEventListener("click", () => {
+  if (window.confirm("Resolve this incident?")) showToast("Incident resolved!", "success");
+});
+document.getElementById("btn_page_oncall_war").addEventListener("click", () => {
+  if (window.confirm("Page the on-call engineer?")) showToast("On-call engineer paged!", "warning");
+});
+document.getElementById("btn_search_runbook").addEventListener("click", () => openModal("runbook_search"));
+
+connect();
+</script>
+</body>
+</html>

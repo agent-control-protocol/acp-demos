@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACP Demo — Travel Itinerary Planner</title>
+<style>
+  :root { --accent: #2ea043; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; display: flex; height: 100vh; }
+
+  /* Form panel */
+  .form-panel { flex: 1; padding: 32px; overflow-y: auto; border-right: 1px solid #30363d; }
+  .form-panel h1 { font-size: 20px; margin-bottom: 4px; color: var(--accent); }
+  .form-panel p.sub { color: #8b949e; margin-bottom: 16px; font-size: 14px; }
+
+  /* Screen tabs */
+  .screen-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+  .screen-tabs button {
+    padding: 6px 16px; border: 1px solid #30363d; border-radius: 6px 6px 0 0; background: #161b22;
+    color: #8b949e; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .screen-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .field-group { margin-bottom: 8px; padding: 12px; background: #161b22; border-radius: 8px; border: 1px solid #21262d; }
+  .field-group h3 { font-size: 13px; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 4px; }
+  .field label .req { color: #f85149; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field.highlight input, .field.highlight select, .field.highlight textarea { border-color: #d29922; background: #1c1e08; }
+  .field input[readonly], .field textarea[readonly] { background: #0d1117; color: #8b949e; cursor: default; }
+
+  .actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .actions button {
+    padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: #30363d; color: #e6edf3; }
+
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200;
+    animation: fadeIn 0.3s; display: none;
+  }
+  .toast.success { background: #238636; color: #fff; }
+  .toast.error { background: #da3633; color: #fff; }
+  .toast.info { background: #1f6feb; color: #fff; }
+  .toast.warning { background: #d29922; color: #fff; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+  @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  .chat-status.thinking::after { content: ''; animation: dots 1.2s infinite steps(1); }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px;
+    width: 440px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .modal input { width: 100%; padding: 8px 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; color: #e6edf3; font-size: 14px; margin-bottom: 12px; }
+  .modal .modal-close { padding: 6px 16px; background: #30363d; color: #e6edf3; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+  /* Chat panel */
+  .chat-panel { width: 380px; display: flex; flex-direction: column; }
+  .chat-header { padding: 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; }
+  .chat-status { font-size: 12px; color: #8b949e; font-weight: 400; margin-left: 8px; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+  .msg.user { background: #1f6feb; align-self: flex-end; }
+  .msg.agent { background: #21262d; align-self: flex-start; }
+  .msg.system { background: transparent; color: #8b949e; font-size: 12px; align-self: center; font-style: italic; }
+  .chat-input { display: flex; padding: 12px; border-top: 1px solid #30363d; gap: 8px; }
+  .chat-input input {
+    flex: 1; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none;
+  }
+  .chat-input button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .chat-input input:disabled, .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="form-panel">
+  <h1>Travel Itinerary Planner</h1>
+  <p class="sub">Plan your dream trip with Wanderly, your AI travel assistant.</p>
+
+  <nav class="screen-tabs">
+    <button class="active" data-tab="setup">Trip Setup</button>
+    <button data-tab="itinerary">Itinerary</button>
+    <button data-tab="summary">Summary</button>
+  </nav>
+
+  <!-- Screen: Setup -->
+  <div class="screen active" data-screen="setup">
+    <div class="field" data-field="destination">
+      <label>Destination <span class="req">*</span></label>
+      <input type="text" id="destination" placeholder="Paris, France">
+    </div>
+    <div class="field" data-field="start_date">
+      <label>Start Date <span class="req">*</span></label>
+      <input type="date" id="start_date">
+    </div>
+    <div class="field" data-field="end_date">
+      <label>End Date <span class="req">*</span></label>
+      <input type="date" id="end_date">
+    </div>
+    <div class="field" data-field="travelers">
+      <label>Number of Travelers</label>
+      <input type="number" id="travelers" placeholder="2" min="1">
+    </div>
+    <div class="field" data-field="budget">
+      <label>Budget Level</label>
+      <select id="budget">
+        <option value="">Select...</option>
+        <option value="budget">Budget</option>
+        <option value="moderate">Moderate</option>
+        <option value="luxury">Luxury</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_next_step_setup">Next Step</button>
+      <button class="btn-secondary" id="btn_reset_setup">Reset</button>
+    </div>
+  </div>
+
+  <!-- Screen: Itinerary -->
+  <div class="screen" data-screen="itinerary">
+    <div class="field" data-field="day_select">
+      <label>Day</label>
+      <select id="day_select">
+        <option value="day1">Day 1</option>
+        <option value="day2">Day 2</option>
+        <option value="day3">Day 3</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <h3>Morning</h3>
+      <div class="field" data-field="morning_activity">
+        <label>Activity</label>
+        <input type="text" id="morning_activity" placeholder="Visit the Louvre">
+      </div>
+      <div class="field" data-field="morning_location">
+        <label>Location</label>
+        <input type="text" id="morning_location" placeholder="Rue de Rivoli">
+      </div>
+      <div class="field" data-field="morning_cost">
+        <label>$ Cost</label>
+        <input type="text" id="morning_cost" placeholder="25.00">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <h3>Afternoon</h3>
+      <div class="field" data-field="afternoon_activity">
+        <label>Activity</label>
+        <input type="text" id="afternoon_activity" placeholder="Seine River Cruise">
+      </div>
+      <div class="field" data-field="afternoon_location">
+        <label>Location</label>
+        <input type="text" id="afternoon_location" placeholder="Pont Neuf">
+      </div>
+      <div class="field" data-field="afternoon_cost">
+        <label>$ Cost</label>
+        <input type="text" id="afternoon_cost" placeholder="40.00">
+      </div>
+    </div>
+
+    <div class="field-group">
+      <h3>Evening</h3>
+      <div class="field" data-field="evening_activity">
+        <label>Activity</label>
+        <input type="text" id="evening_activity" placeholder="Dinner at Le Jules Verne">
+      </div>
+      <div class="field" data-field="evening_location">
+        <label>Location</label>
+        <input type="text" id="evening_location" placeholder="Eiffel Tower">
+      </div>
+      <div class="field" data-field="evening_cost">
+        <label>$ Cost</label>
+        <input type="text" id="evening_cost" placeholder="120.00">
+      </div>
+    </div>
+
+    <div class="field" data-field="day_notes">
+      <label>Day Notes</label>
+      <textarea id="day_notes" placeholder="Tips, reminders, reservation info..."></textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="btn_next_step_itin">Next Step</button>
+      <button class="btn-secondary" id="btn_back_itin">Back</button>
+      <button class="btn-secondary" id="btn_search_activity">Search Activities</button>
+    </div>
+  </div>
+
+  <!-- Screen: Summary -->
+  <div class="screen" data-screen="summary">
+    <div class="field" data-field="total_cost">
+      <label>$ Total Cost</label>
+      <input type="text" id="total_cost" readonly placeholder="0.00">
+    </div>
+    <div class="field" data-field="daily_average">
+      <label>$ Daily Average</label>
+      <input type="text" id="daily_average" readonly placeholder="0.00">
+    </div>
+    <div class="field" data-field="trip_notes">
+      <label>Trip Notes</label>
+      <textarea id="trip_notes" placeholder="Final notes and recommendations..."></textarea>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_finalize">Finalize Trip</button>
+      <button class="btn-secondary" id="btn_back_summary">Back</button>
+      <button class="btn-secondary" id="btn_reset_summary">Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Activity Search -->
+<div class="modal-overlay" id="modal_activity_search">
+  <div class="modal">
+    <h2>Search Activities</h2>
+    <input type="text" id="modal_search_input" placeholder="Search for activities...">
+    <p style="color:#8b949e; font-size:13px; margin-bottom:12px;">Ask the agent to search for activities at your destination.</p>
+    <button class="modal-close" onclick="closeModal('activity_search')">Close</button>
+  </div>
+</div>
+
+<div class="chat-panel">
+  <div class="chat-header">
+    Wanderly <span class="chat-status" id="status">connecting...</span>
+  </div>
+  <div class="chat-messages" id="messages"></div>
+  <div class="chat-input">
+    <input type="text" id="chat-input" placeholder="Tell Wanderly about your dream trip..." autofocus>
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WS_URL = "ws://localhost:__ACP_WS_PORT__/connect";
+const statusEl = document.getElementById("status");
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("chat-input");
+const toastEl = document.getElementById("toast");
+
+let ws, streaming = "", busy = false, reconnectAttempts = 0;
+const MAX_RECONNECT = 5;
+
+// --- Screen navigation ---
+function switchScreen(screenId) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".screen-tabs button").forEach(b => b.classList.remove("active"));
+  const screen = document.querySelector(`.screen[data-screen="${screenId}"]`);
+  const tab = document.querySelector(`.screen-tabs button[data-tab="${screenId}"]`);
+  if (screen) screen.classList.add("active");
+  if (tab) tab.classList.add("active");
+}
+
+document.querySelectorAll(".screen-tabs button").forEach(btn => {
+  btn.addEventListener("click", () => switchScreen(btn.dataset.tab));
+});
+
+// --- Modal ---
+function openModal(id) { document.getElementById("modal_" + id)?.classList.add("open"); }
+function closeModal(id) { document.getElementById("modal_" + id)?.classList.remove("open"); }
+
+// --- WebSocket ---
+function connect() {
+  ws = new WebSocket(WS_URL);
+  const _wsSend = ws.send.bind(ws);
+  ws.send = (data) => { const m = JSON.parse(data); console.log("[ACP →]", m.type, m); _wsSend(data); };
+  ws.onopen = () => { reconnectAttempts = 0; addSystemMsg("Connected to ACP server"); };
+  ws.onclose = () => {
+    statusEl.textContent = "disconnected";
+    if (reconnectAttempts < MAX_RECONNECT) {
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+      addSystemMsg(`Disconnected. Reconnecting in ${delay/1000}s... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      setTimeout(connect, delay);
+    } else { addSystemMsg("Connection lost. Reload the page to retry."); }
+  };
+  ws.onerror = () => {};
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+}
+
+function sendManifest() {
+  ws.send(JSON.stringify({
+    type: "manifest",
+    app: "travel-planner",
+    currentScreen: "setup",
+    persona: {
+      name: "Wanderly",
+      role: "travel itinerary planning assistant",
+      instructions: "CRITICAL RULE: You MUST fill ALL 3 screens (setup, itinerary, summary) in one go. DO NOT stop or say Done until the summary screen fields are filled. After filling each screen, ALWAYS call click_action next_step to advance.\n\nYou are Wanderly, a friendly travel planner.\n\nStep 1 — SETUP: set_field destination, start_date, end_date, travelers, budget. Then click_action next_step.\nStep 2 — ITINERARY: set_field day_select, morning_activity, morning_location, morning_cost, afternoon_activity, afternoon_location, afternoon_cost, evening_activity, evening_location, evening_cost, day_notes. Then click_action next_step.\nStep 3 — SUMMARY: set_field total_cost (sum of costs), daily_average (total/days), trip_notes (recommendations). Then show_toast success.\n\nYou are NOT done until Step 3 is complete."
+    },
+    screens: {
+      setup: {
+        id: "setup", label: "Trip Setup",
+        fields: [
+          { id: "destination", type: "text", label: "Destination", required: true },
+          { id: "start_date", type: "date", label: "Start Date", required: true },
+          { id: "end_date", type: "date", label: "End Date", required: true },
+          { id: "travelers", type: "number", label: "Number of Travelers", min: 1 },
+          { id: "budget", type: "select", label: "Budget Level", options: [
+            { value: "budget", label: "Budget" }, { value: "moderate", label: "Moderate" }, { value: "luxury", label: "Luxury" }
+          ]}
+        ],
+        actions: [
+          { id: "next_step", label: "Next Step" },
+          { id: "reset", label: "Reset" }
+        ]
+      },
+      itinerary: {
+        id: "itinerary", label: "Itinerary",
+        fields: [
+          { id: "day_select", type: "select", label: "Day", options: [
+            { value: "day1", label: "Day 1" }, { value: "day2", label: "Day 2" }, { value: "day3", label: "Day 3" }
+          ]},
+          { id: "morning_activity", type: "text", label: "Morning Activity" },
+          { id: "morning_location", type: "text", label: "Morning Location" },
+          { id: "morning_cost", type: "currency", label: "Morning Cost" },
+          { id: "afternoon_activity", type: "text", label: "Afternoon Activity" },
+          { id: "afternoon_location", type: "text", label: "Afternoon Location" },
+          { id: "afternoon_cost", type: "currency", label: "Afternoon Cost" },
+          { id: "evening_activity", type: "text", label: "Evening Activity" },
+          { id: "evening_location", type: "text", label: "Evening Location" },
+          { id: "evening_cost", type: "currency", label: "Evening Cost" },
+          { id: "day_notes", type: "textarea", label: "Day Notes" }
+        ],
+        actions: [
+          { id: "next_step", label: "Next Step" },
+          { id: "back", label: "Back" }
+        ],
+        modals: [
+          { id: "activity_search", label: "Search Activities", searchable: true }
+        ]
+      },
+      summary: {
+        id: "summary", label: "Summary",
+        fields: [
+          { id: "total_cost", type: "currency", label: "Total Cost", readOnly: true },
+          { id: "daily_average", type: "currency", label: "Daily Average", readOnly: true },
+          { id: "trip_notes", type: "textarea", label: "Trip Notes" }
+        ],
+        actions: [
+          { id: "finalize_trip", label: "Finalize Trip", requiresConfirmation: true },
+          { id: "back", label: "Back" },
+          { id: "reset", label: "Reset" }
+        ]
+      }
+    }
+  }));
+}
+
+function handleMessage(msg) {
+  if (msg.type === "command") {
+    console.log("[ACP ←] command seq=" + msg.seq, msg.actions.map(a => `${a.do}(${a.field||a.screen||a.action||a.modal||""})${a.value!==undefined?"="+JSON.stringify(a.value):a.message?" msg="+JSON.stringify(a.message):""}`));
+  } else {
+    console.log("[ACP ←]", msg.type, msg.status || msg.message || "");
+  }
+  switch (msg.type) {
+    case "config": sendManifest(); break;
+    case "status":
+      statusEl.textContent = msg.status;
+      statusEl.className = "chat-status" + (msg.status === "thinking" || msg.status === "executing" ? " thinking" : "");
+      busy = msg.status !== "idle";
+      inputEl.disabled = busy;
+      document.getElementById("chat-send").disabled = busy;
+      if (!busy) inputEl.focus();
+      break;
+    case "chat":
+      if (msg.delta) { if (!streaming) { streaming = ""; startStream(); } streaming += msg.message; updateStream(streaming); }
+      else if (streamEl) { finalizeStream(); }
+      else { addAgentMsg(msg.message); }
+      break;
+    case "command": executeCommand(msg); break;
+    case "error": addSystemMsg("Error: " + msg.message); break;
+  }
+}
+
+function executeCommand(msg) {
+  const results = msg.actions.map((action, i) => {
+    try {
+      switch (action.do) {
+        case "set_field": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found: " + action.field };
+          if (el.readOnly) { el.value = String(action.value); flash(el); }
+          else {
+            const tag = el.tagName.toLowerCase();
+            const inputType = el.getAttribute("type") || "text";
+            if (tag === "select" || ["number", "date", "datetime-local"].includes(inputType)) {
+              el.value = String(action.value); flash(el);
+            } else { typewriter(el, String(action.value)); }
+          }
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          return { index: i, success: true };
+        }
+        case "clear": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found" };
+          el.value = ""; return { index: i, success: true };
+        }
+        case "click": {
+          const cur = document.querySelector(".screen.active")?.dataset.screen;
+          console.log("[CLICK]", action.action, "on screen:", cur);
+          addSystemMsg("Action: " + action.action);
+          if (action.action === "next_step") {
+            const next = { setup: "itinerary", itinerary: "summary" }[cur];
+            if (next) switchScreen(next);
+          } else if (action.action === "back") {
+            const prev = { itinerary: "setup", summary: "itinerary" }[cur];
+            if (prev) switchScreen(prev);
+          } else if (action.action === "reset") {
+            document.querySelectorAll(".form-panel input, .form-panel select, .form-panel textarea").forEach(el => { if (!el.readOnly) el.value = ""; });
+            switchScreen("setup");
+          }
+          return { index: i, success: true };
+        }
+        case "navigate": {
+          console.log("[NAV]", document.querySelector(".screen.active")?.dataset.screen, "→", action.screen);
+          switchScreen(action.screen);
+          return { index: i, success: true };
+        }
+        case "show_toast": {
+          showToast(action.message, action.level || "info");
+          return { index: i, success: true };
+        }
+        case "ask_confirm": {
+          const confirmed = window.confirm(action.message || "Are you sure?");
+          ws.send(JSON.stringify({ type: "confirm", seq: msg.seq, confirmed }));
+          return { index: i, success: true };
+        }
+        case "open_modal": {
+          openModal(action.modal);
+          return { index: i, success: true };
+        }
+        case "close_modal": {
+          closeModal(action.modal);
+          return { index: i, success: true };
+        }
+        default: return { index: i, success: true };
+      }
+    } catch (err) { return { index: i, success: false, error: err.message }; }
+  });
+  ws.send(JSON.stringify({ type: "result", seq: msg.seq, results }));
+}
+
+// --- Typewriter ---
+function typewriter(el, value) {
+  el.value = ""; flash(el);
+  let i = 0;
+  const interval = setInterval(() => { el.value += value[i]; i++; if (i >= value.length) clearInterval(interval); }, 25);
+}
+function flash(el) {
+  const field = el.closest(".field");
+  if (field) { field.classList.add("highlight"); setTimeout(() => field.classList.remove("highlight"), 1500); }
+}
+
+// --- Chat UI ---
+function addAgentMsg(text) { addMsg(text, "agent"); }
+function addUserMsg(text) { addMsg(text, "user"); }
+function addSystemMsg(text) { addMsg(text, "system"); }
+function addMsg(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls; div.textContent = text;
+  messagesEl.appendChild(div); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+let streamEl = null;
+function startStream() { streamEl = document.createElement("div"); streamEl.className = "msg agent"; messagesEl.appendChild(streamEl); }
+function updateStream(text) { if (streamEl) { streamEl.textContent = text; messagesEl.scrollTop = messagesEl.scrollHeight; } }
+function finalizeStream() { streaming = ""; streamEl = null; }
+
+function showToast(msg, level) {
+  toastEl.textContent = msg; toastEl.className = "toast " + level;
+  toastEl.style.display = "block"; setTimeout(() => { toastEl.style.display = "none"; }, 3000);
+}
+
+function sendText() {
+  const text = inputEl.value.trim();
+  if (!text || !ws) return;
+  addUserMsg(text);
+  ws.send(JSON.stringify({ type: "text", message: text }));
+  inputEl.value = "";
+}
+
+document.getElementById("chat-send").addEventListener("click", sendText);
+inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
+
+// --- Button handlers ---
+document.getElementById("btn_next_step_setup").addEventListener("click", () => switchScreen("itinerary"));
+document.getElementById("btn_reset_setup").addEventListener("click", () => {
+  document.querySelectorAll(".form-panel input, .form-panel select, .form-panel textarea").forEach(el => { if (!el.readOnly) el.value = ""; });
+});
+document.getElementById("btn_next_step_itin").addEventListener("click", () => switchScreen("summary"));
+document.getElementById("btn_back_itin").addEventListener("click", () => switchScreen("setup"));
+document.getElementById("btn_search_activity").addEventListener("click", () => openModal("activity_search"));
+document.getElementById("btn_finalize").addEventListener("click", () => {
+  if (window.confirm("Finalize this trip itinerary?")) showToast("Trip finalized!", "success");
+});
+document.getElementById("btn_back_summary").addEventListener("click", () => switchScreen("itinerary"));
+document.getElementById("btn_reset_summary").addEventListener("click", () => {
+  document.querySelectorAll(".form-panel input, .form-panel select, .form-panel textarea").forEach(el => { if (!el.readOnly) el.value = ""; });
+  switchScreen("setup");
+});
+
+connect();
+</script>
+</body>
+</html>

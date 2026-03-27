@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACP Demo — Interactive Quiz Builder</title>
+<style>
+  :root { --accent: #8957e5; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; display: flex; height: 100vh; }
+
+  .form-panel { flex: 1; padding: 32px; overflow-y: auto; border-right: 1px solid #30363d; }
+  .form-panel h1 { font-size: 20px; margin-bottom: 4px; color: var(--accent); }
+  .form-panel p.sub { color: #8b949e; margin-bottom: 16px; font-size: 14px; }
+
+  .screen-tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+  .screen-tabs button {
+    padding: 6px 16px; border: 1px solid #30363d; border-radius: 6px 6px 0 0; background: #161b22;
+    color: #8b949e; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .screen-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 13px; color: #8b949e; margin-bottom: 4px; }
+  .field label .req { color: #f85149; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 60px; }
+  .field.highlight input, .field.highlight select, .field.highlight textarea { border-color: #d29922; background: #1c1e08; }
+  .field input[readonly], .field textarea[readonly] { background: #0d1117; color: #8b949e; cursor: default; }
+
+  .field-group { margin-bottom: 8px; padding: 12px; background: #161b22; border-radius: 8px; border: 1px solid #21262d; }
+  .field-group h3 { font-size: 13px; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .actions { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  .actions button { padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-secondary { background: #30363d; color: #e6edf3; }
+
+  .toast {
+    position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; z-index: 200;
+    animation: fadeIn 0.3s; display: none;
+  }
+  .toast.success { background: #238636; color: #fff; }
+  .toast.error { background: #da3633; color: #fff; }
+  .toast.info { background: #1f6feb; color: #fff; }
+  .toast.warning { background: #d29922; color: #fff; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+  @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  .chat-status.thinking::after { content: ''; animation: dots 1.2s infinite steps(1); }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 150;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 24px;
+    width: 500px; max-height: 80vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 16px; margin-bottom: 12px; color: var(--accent); }
+  .modal .preview-content { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 16px; font-size: 14px; color: #e6edf3; margin-bottom: 12px; min-height: 100px; white-space: pre-wrap; }
+  .modal .modal-close { padding: 6px 16px; background: #30363d; color: #e6edf3; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+
+  .chat-panel { width: 380px; display: flex; flex-direction: column; }
+  .chat-header { padding: 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; }
+  .chat-status { font-size: 12px; color: #8b949e; font-weight: 400; margin-left: 8px; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 8px 12px; border-radius: 12px; max-width: 85%; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+  .msg.user { background: #1f6feb; align-self: flex-end; }
+  .msg.agent { background: #21262d; align-self: flex-start; }
+  .msg.system { background: transparent; color: #8b949e; font-size: 12px; align-self: center; font-style: italic; }
+  .chat-input { display: flex; padding: 12px; border-top: 1px solid #30363d; gap: 8px; }
+  .chat-input input {
+    flex: 1; padding: 8px 12px; background: #161b22; border: 1px solid #30363d;
+    border-radius: 6px; color: #e6edf3; font-size: 14px; outline: none;
+  }
+  .chat-input button { padding: 8px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .chat-input input:disabled, .chat-input button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+</head>
+<body>
+
+<div class="form-panel">
+  <h1>Interactive Quiz Builder</h1>
+  <p class="sub">Create engaging quizzes with Quizzy, your AI quiz design assistant.</p>
+
+  <nav class="screen-tabs">
+    <button class="active" data-tab="setup">Quiz Setup</button>
+    <button data-tab="editor">Question Editor</button>
+    <button data-tab="review">Review</button>
+  </nav>
+
+  <!-- Screen: Setup -->
+  <div class="screen active" data-screen="setup">
+    <div class="field" data-field="title">
+      <label>Quiz Title <span class="req">*</span></label>
+      <input type="text" id="title" placeholder="Product Knowledge Assessment">
+    </div>
+    <div class="field" data-field="description">
+      <label>Description</label>
+      <textarea id="description" placeholder="What is this quiz about?"></textarea>
+    </div>
+    <div class="field" data-field="passing_score">
+      <label>Passing Score (%) <span class="req">*</span></label>
+      <input type="number" id="passing_score" min="0" max="100" placeholder="70">
+    </div>
+    <div class="field" data-field="time_limit">
+      <label>Time Limit (minutes)</label>
+      <input type="number" id="time_limit" min="1" placeholder="30">
+    </div>
+    <div class="field" data-field="audience">
+      <label>Target Audience</label>
+      <select id="audience">
+        <option value="">Select...</option>
+        <option value="Sales">Sales</option>
+        <option value="Engineering">Engineering</option>
+        <option value="Support">Support</option>
+        <option value="All">All Teams</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_save_quiz">Save Quiz Settings</button>
+      <button class="btn-primary" id="btn_next_setup">Next Step</button>
+    </div>
+  </div>
+
+  <!-- Screen: Editor -->
+  <div class="screen" data-screen="editor">
+    <div class="field" data-field="question_number">
+      <label>Question #</label>
+      <input type="number" id="question_number" readonly value="1">
+    </div>
+    <div class="field" data-field="question_type">
+      <label>Question Type</label>
+      <select id="question_type">
+        <option value="multiple_choice">Multiple Choice</option>
+        <option value="true_false">True / False</option>
+        <option value="short_answer">Short Answer</option>
+      </select>
+    </div>
+    <div class="field" data-field="question_text">
+      <label>Question Text <span class="req">*</span></label>
+      <textarea id="question_text" placeholder="Enter your question here..."></textarea>
+    </div>
+
+    <div class="field-group">
+      <h3>Answer Options</h3>
+      <div class="field" data-field="option_a">
+        <label>Option A</label>
+        <input type="text" id="option_a" placeholder="First option">
+      </div>
+      <div class="field" data-field="option_b">
+        <label>Option B</label>
+        <input type="text" id="option_b" placeholder="Second option">
+      </div>
+      <div class="field" data-field="option_c">
+        <label>Option C</label>
+        <input type="text" id="option_c" placeholder="Third option">
+      </div>
+      <div class="field" data-field="option_d">
+        <label>Option D</label>
+        <input type="text" id="option_d" placeholder="Fourth option">
+      </div>
+    </div>
+
+    <div class="field" data-field="correct_answer">
+      <label>Correct Answer</label>
+      <select id="correct_answer">
+        <option value="">Select...</option>
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+      </select>
+    </div>
+    <div class="field" data-field="explanation">
+      <label>Explanation</label>
+      <textarea id="explanation" placeholder="Why is this the correct answer?"></textarea>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="btn_add_question">Add Question</button>
+      <button class="btn-secondary" id="btn_clear_question">Clear Question</button>
+      <button class="btn-secondary" id="btn_next_question">Next Question</button>
+      <button class="btn-secondary" id="btn_preview_question">Preview</button>
+    </div>
+  </div>
+
+  <!-- Screen: Review -->
+  <div class="screen" data-screen="review">
+    <div class="field" data-field="total_questions">
+      <label>Total Questions</label>
+      <input type="number" id="total_questions" readonly value="0">
+    </div>
+    <div class="field" data-field="quiz_preview">
+      <label>Quiz Preview</label>
+      <textarea id="quiz_preview" readonly placeholder="Quiz summary will appear here..." style="min-height:180px;"></textarea>
+    </div>
+    <div class="field" data-field="quiz_status">
+      <label>Status</label>
+      <input type="text" id="quiz_status" readonly value="Draft">
+    </div>
+    <div class="actions">
+      <button class="btn-primary" id="btn_publish">Publish Quiz</button>
+      <button class="btn-secondary" id="btn_back_review">Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Question Preview -->
+<div class="modal-overlay" id="modal_question_preview">
+  <div class="modal">
+    <h2>Question Preview</h2>
+    <div class="preview-content" id="preview_content">No question loaded yet.</div>
+    <button class="modal-close" onclick="closeModal('question_preview')">Close</button>
+  </div>
+</div>
+
+<div class="chat-panel">
+  <div class="chat-header">
+    Quizzy <span class="chat-status" id="status">connecting...</span>
+  </div>
+  <div class="chat-messages" id="messages"></div>
+  <div class="chat-input">
+    <input type="text" id="chat-input" placeholder="Ask Quizzy to create quiz questions..." autofocus>
+    <button id="chat-send">Send</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const WS_URL = "ws://localhost:__ACP_WS_PORT__/connect";
+const statusEl = document.getElementById("status");
+const messagesEl = document.getElementById("messages");
+const inputEl = document.getElementById("chat-input");
+const toastEl = document.getElementById("toast");
+
+let ws, streaming = "", busy = false, reconnectAttempts = 0;
+const MAX_RECONNECT = 5;
+
+function switchScreen(screenId) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".screen-tabs button").forEach(b => b.classList.remove("active"));
+  const screen = document.querySelector(`.screen[data-screen="${screenId}"]`);
+  const tab = document.querySelector(`.screen-tabs button[data-tab="${screenId}"]`);
+  if (screen) screen.classList.add("active");
+  if (tab) tab.classList.add("active");
+}
+document.querySelectorAll(".screen-tabs button").forEach(btn => {
+  btn.addEventListener("click", () => switchScreen(btn.dataset.tab));
+});
+
+function openModal(id) {
+  if (id === "question_preview") {
+    // Build preview from current fields
+    const q = document.getElementById("question_text").value || "(no question)";
+    const opts = ["A","B","C","D"].map(l => {
+      const v = document.getElementById("option_" + l.toLowerCase()).value;
+      return v ? `  ${l}. ${v}` : null;
+    }).filter(Boolean).join("\n");
+    const correct = document.getElementById("correct_answer").value;
+    const expl = document.getElementById("explanation").value;
+    let preview = `Q: ${q}`;
+    if (opts) preview += `\n\n${opts}`;
+    if (correct) preview += `\n\nCorrect: ${correct}`;
+    if (expl) preview += `\n\nExplanation: ${expl}`;
+    document.getElementById("preview_content").textContent = preview;
+  }
+  document.getElementById("modal_" + id)?.classList.add("open");
+}
+function closeModal(id) { document.getElementById("modal_" + id)?.classList.remove("open"); }
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  const _wsSend = ws.send.bind(ws);
+  ws.send = (data) => { const m = JSON.parse(data); console.log("[ACP →]", m.type, m); _wsSend(data); };
+  ws.onopen = () => { reconnectAttempts = 0; addSystemMsg("Connected to ACP server"); };
+  ws.onclose = () => {
+    statusEl.textContent = "disconnected";
+    if (reconnectAttempts < MAX_RECONNECT) {
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+      reconnectAttempts++;
+      addSystemMsg(`Disconnected. Reconnecting in ${delay/1000}s... (${reconnectAttempts}/${MAX_RECONNECT})`);
+      setTimeout(connect, delay);
+    } else { addSystemMsg("Connection lost. Reload the page to retry."); }
+  };
+  ws.onerror = () => {};
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+}
+
+function sendManifest() {
+  ws.send(JSON.stringify({
+    type: "manifest",
+    app: "quiz-builder",
+    currentScreen: "setup",
+    persona: {
+      name: "Quizzy",
+      role: "interactive quiz building assistant",
+      instructions: "CRITICAL RULE: You MUST fill ALL 3 screens (setup, editor, review) in one go. DO NOT stop or say Done until the review screen fields are filled.\n\nYou are Quizzy, a creative quiz design assistant.\n\nStep 1 — SETUP: set_field title, description, passing_score (e.g. 70), time_limit (e.g. 15), audience. Then click_action next_step.\nStep 2 — EDITOR: Create 2 questions. For each: set_field question_type, question_text, option_a, option_b, option_c, option_d, correct_answer, explanation. Then click_action add_question. Then click_action clear_question. Then click_action next_question. After both questions, click_action next_step.\nStep 3 — REVIEW: set_field total_questions=2, quiz_preview (summary text of all questions), quiz_status=Ready. Then show_toast success.\n\nYou are NOT done until Step 3 is complete. Be creative with question content!"
+    },
+    screens: {
+      setup: {
+        id: "setup", label: "Quiz Setup",
+        fields: [
+          { id: "title", type: "text", label: "Quiz Title", required: true },
+          { id: "description", type: "textarea", label: "Description" },
+          { id: "passing_score", type: "number", label: "Passing Score (%)", required: true, min: 0, max: 100 },
+          { id: "time_limit", type: "number", label: "Time Limit (minutes)", min: 1 },
+          { id: "audience", type: "select", label: "Target Audience", options: [
+            { value: "Sales", label: "Sales" }, { value: "Engineering", label: "Engineering" },
+            { value: "Support", label: "Support" }, { value: "All", label: "All Teams" }
+          ]}
+        ],
+        actions: [
+          { id: "save_quiz_settings", label: "Save Quiz Settings" },
+          { id: "next_step", label: "Next Step" }
+        ]
+      },
+      editor: {
+        id: "editor", label: "Question Editor",
+        fields: [
+          { id: "question_number", type: "number", label: "Question #", readOnly: true },
+          { id: "question_type", type: "select", label: "Question Type", options: [
+            { value: "multiple_choice", label: "Multiple Choice" },
+            { value: "true_false", label: "True / False" },
+            { value: "short_answer", label: "Short Answer" }
+          ]},
+          { id: "question_text", type: "textarea", label: "Question Text", required: true },
+          { id: "option_a", type: "text", label: "Option A" },
+          { id: "option_b", type: "text", label: "Option B" },
+          { id: "option_c", type: "text", label: "Option C" },
+          { id: "option_d", type: "text", label: "Option D" },
+          { id: "correct_answer", type: "select", label: "Correct Answer", options: [
+            { value: "A", label: "A" }, { value: "B", label: "B" },
+            { value: "C", label: "C" }, { value: "D", label: "D" }
+          ]},
+          { id: "explanation", type: "textarea", label: "Explanation" }
+        ],
+        actions: [
+          { id: "add_question", label: "Add Question" },
+          { id: "clear_question", label: "Clear Question" },
+          { id: "next_question", label: "Next Question" }
+        ],
+        modals: [
+          { id: "question_preview", label: "Preview Question" }
+        ]
+      },
+      review: {
+        id: "review", label: "Review",
+        fields: [
+          { id: "total_questions", type: "number", label: "Total Questions", readOnly: true },
+          { id: "quiz_preview", type: "textarea", label: "Quiz Preview", readOnly: true },
+          { id: "quiz_status", type: "text", label: "Status", readOnly: true }
+        ],
+        actions: [
+          { id: "publish_quiz", label: "Publish Quiz", requiresConfirmation: true },
+          { id: "back", label: "Back" }
+        ]
+      }
+    }
+  }));
+}
+
+function handleMessage(msg) {
+  if (msg.type === "command") {
+    console.log("[ACP ←] command seq=" + msg.seq, msg.actions.map(a => `${a.do}(${a.field||a.screen||a.action||a.modal||""})${a.value!==undefined?"="+JSON.stringify(a.value):a.message?" msg="+JSON.stringify(a.message):""}`));
+  } else {
+    console.log("[ACP ←]", msg.type, msg.status || msg.message || "");
+  }
+  switch (msg.type) {
+    case "config": sendManifest(); break;
+    case "status":
+      statusEl.textContent = msg.status;
+      statusEl.className = "chat-status" + (msg.status === "thinking" || msg.status === "executing" ? " thinking" : "");
+      busy = msg.status !== "idle";
+      inputEl.disabled = busy;
+      document.getElementById("chat-send").disabled = busy;
+      if (!busy) inputEl.focus();
+      break;
+    case "chat":
+      if (msg.delta) { if (!streaming) { streaming = ""; startStream(); } streaming += msg.message; updateStream(streaming); }
+      else if (streamEl) { finalizeStream(); }
+      else { addAgentMsg(msg.message); }
+      break;
+    case "command": executeCommand(msg); break;
+    case "error": addSystemMsg("Error: " + msg.message); break;
+  }
+}
+
+function executeCommand(msg) {
+  const results = msg.actions.map((action, i) => {
+    try {
+      switch (action.do) {
+        case "set_field": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found: " + action.field };
+          if (el.readOnly) { el.value = String(action.value); flash(el); }
+          else {
+            const tag = el.tagName.toLowerCase();
+            const inputType = el.getAttribute("type") || "text";
+            if (tag === "select" || ["number", "date", "datetime-local"].includes(inputType)) {
+              el.value = String(action.value); flash(el);
+            } else { typewriter(el, String(action.value)); }
+          }
+          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          return { index: i, success: true };
+        }
+        case "clear": {
+          const el = document.getElementById(action.field);
+          if (!el) return { index: i, success: false, error: "Field not found" };
+          if (!el.readOnly) el.value = "";
+          return { index: i, success: true };
+        }
+        case "click": {
+          const cur = document.querySelector(".screen.active")?.dataset.screen;
+          console.log("[CLICK]", action.action, "on screen:", cur);
+          addSystemMsg("Action: " + action.action);
+          if (action.action === "next_step") {
+            const next = { setup: "editor", editor: "review" }[cur];
+            if (next) switchScreen(next);
+          } else if (action.action === "back") {
+            const prev = { editor: "setup", review: "editor" }[cur];
+            if (prev) switchScreen(prev);
+          } else if (action.action === "save_quiz_settings") {
+            showToast("Quiz settings saved", "success");
+          } else if (action.action === "clear_question") {
+            ["question_text","option_a","option_b","option_c","option_d","explanation"].forEach(id => {
+              document.getElementById(id).value = "";
+            });
+            document.getElementById("correct_answer").value = "";
+            document.getElementById("question_type").value = "multiple_choice";
+          } else if (action.action === "add_question") {
+            const qn = document.getElementById("total_questions");
+            qn.value = parseInt(qn.value || "0") + 1;
+            showToast("Question added!", "success");
+          } else if (action.action === "next_question") {
+            const qn = document.getElementById("question_number");
+            qn.value = parseInt(qn.value || "1") + 1;
+            ["question_text","option_a","option_b","option_c","option_d","explanation"].forEach(id => document.getElementById(id).value = "");
+            document.getElementById("correct_answer").value = "";
+          }
+          return { index: i, success: true };
+        }
+        case "navigate": {
+          console.log("[NAV]", document.querySelector(".screen.active")?.dataset.screen, "→", action.screen);
+          switchScreen(action.screen);
+          return { index: i, success: true };
+        }
+        case "show_toast": {
+          showToast(action.message, action.level || "info");
+          return { index: i, success: true };
+        }
+        case "ask_confirm": {
+          const confirmed = window.confirm(action.message || "Are you sure?");
+          ws.send(JSON.stringify({ type: "confirm", seq: msg.seq, confirmed }));
+          return { index: i, success: true };
+        }
+        case "open_modal": {
+          openModal(action.modal);
+          return { index: i, success: true };
+        }
+        case "close_modal": {
+          closeModal(action.modal);
+          return { index: i, success: true };
+        }
+        default: return { index: i, success: true };
+      }
+    } catch (err) { return { index: i, success: false, error: err.message }; }
+  });
+  ws.send(JSON.stringify({ type: "result", seq: msg.seq, results }));
+}
+
+function typewriter(el, value) {
+  el.value = ""; flash(el);
+  let i = 0;
+  const interval = setInterval(() => { el.value += value[i]; i++; if (i >= value.length) clearInterval(interval); }, 25);
+}
+function flash(el) {
+  const field = el.closest(".field");
+  if (field) { field.classList.add("highlight"); setTimeout(() => field.classList.remove("highlight"), 1500); }
+}
+
+function addAgentMsg(text) { addMsg(text, "agent"); }
+function addUserMsg(text) { addMsg(text, "user"); }
+function addSystemMsg(text) { addMsg(text, "system"); }
+function addMsg(text, cls) {
+  const div = document.createElement("div");
+  div.className = "msg " + cls; div.textContent = text;
+  messagesEl.appendChild(div); messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+let streamEl = null;
+function startStream() { streamEl = document.createElement("div"); streamEl.className = "msg agent"; messagesEl.appendChild(streamEl); }
+function updateStream(text) { if (streamEl) { streamEl.textContent = text; messagesEl.scrollTop = messagesEl.scrollHeight; } }
+function finalizeStream() { streaming = ""; streamEl = null; }
+
+function showToast(msg, level) {
+  toastEl.textContent = msg; toastEl.className = "toast " + level;
+  toastEl.style.display = "block"; setTimeout(() => { toastEl.style.display = "none"; }, 3000);
+}
+
+function sendText() {
+  const text = inputEl.value.trim();
+  if (!text || !ws) return;
+  addUserMsg(text);
+  ws.send(JSON.stringify({ type: "text", message: text }));
+  inputEl.value = "";
+}
+
+document.getElementById("chat-send").addEventListener("click", sendText);
+inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") sendText(); });
+
+// --- Button handlers ---
+document.getElementById("btn_save_quiz").addEventListener("click", () => showToast("Quiz settings saved", "success"));
+document.getElementById("btn_next_setup").addEventListener("click", () => switchScreen("editor"));
+document.getElementById("btn_add_question").addEventListener("click", () => {
+  const qn = document.getElementById("total_questions");
+  qn.value = parseInt(qn.value || "0") + 1;
+  showToast("Question added!", "success");
+});
+document.getElementById("btn_clear_question").addEventListener("click", () => {
+  ["question_text","option_a","option_b","option_c","option_d","explanation"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("correct_answer").value = "";
+  document.getElementById("question_type").value = "multiple_choice";
+});
+document.getElementById("btn_next_question").addEventListener("click", () => {
+  const qn = document.getElementById("question_number");
+  qn.value = parseInt(qn.value || "1") + 1;
+  ["question_text","option_a","option_b","option_c","option_d","explanation"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("correct_answer").value = "";
+});
+document.getElementById("btn_preview_question").addEventListener("click", () => openModal("question_preview"));
+document.getElementById("btn_publish").addEventListener("click", () => {
+  if (window.confirm("Publish this quiz?")) showToast("Quiz published!", "success");
+});
+document.getElementById("btn_back_review").addEventListener("click", () => switchScreen("editor"));
+
+connect();
+</script>
+</body>
+</html>
