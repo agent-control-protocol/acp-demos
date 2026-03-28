@@ -9,7 +9,7 @@
     "budget": "node budget-wizard/server.mjs"
   },
   "dependencies": {
-    "@acprotocol/server": "file:../acp-server",
+    "@acprotocol/server": "^2.0.0",
     "openai": "^6.33.0"
   }
 }
