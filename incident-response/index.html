@@ -400,6 +400,8 @@ function executeCommand(msg) {
             showToast("Status page updated", "success");
           } else if (action.action === "resolve_incident") {
             showToast("Incident resolved!", "success");
+          } else if (action.action === "page_oncall") {
+            showToast("On-call engineer paged!", "warning");
           }
           return { index: i, success: true };
         }

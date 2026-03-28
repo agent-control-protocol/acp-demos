@@ -1,6 +1,6 @@
 {
   "name": "acp-demos",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "travel": "node travel-planner/server.mjs",
@@ -9,7 +9,7 @@
     "budget": "node budget-wizard/server.mjs"
   },
   "dependencies": {
-    "@acprotocol/server": "^0.2.0",
+    "@acprotocol/server": "file:../acp-server",
     "openai": "^6.33.0"
   }
 }
