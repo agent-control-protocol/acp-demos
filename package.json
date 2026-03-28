@@ -6,7 +6,8 @@
     "travel": "node travel-planner/server.mjs",
     "incident": "node incident-response/server.mjs",
     "quiz": "node quiz-builder/server.mjs",
-    "budget": "node budget-wizard/server.mjs"
+    "budget": "node budget-wizard/server.mjs",
+    "nfse": "node emissor-nfse/server.mjs"
   },
   "dependencies": {
     "@acprotocol/server": "^2.0.0",

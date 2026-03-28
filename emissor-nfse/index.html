@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Emissor NFS-e — ACP Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #F1F5F9;
+      color: #1E293B;
+      overflow: hidden;
+    }
+
+    /* ─── Color tokens (from Flutter SDK) ──────────────────────── */
+    :root {
+      --slate-900: #0F172A;
+      --slate-800: #1E293B;
+      --slate-600: #475569;
+      --slate-500: #64748B;
+      --slate-400: #94A3B8;
+      --slate-300: #CBD5E1;
+      --slate-200: #E2E8F0;
+      --slate-100: #F1F5F9;
+      --slate-50:  #F8FAFC;
+      --blue-500:  #3B82F6;
+      --blue-600:  #2563EB;
+      --blue-100:  #DBEAFE;
+      --green-500: #22C55E;
+      --red-500:   #EF4444;
+      --red-400:   #FF4060;
+      --amber-500: #F59E0B;
+      --orange-300:#FFB347;
+      --purple-500:#8B5CF6;
+      --cyan-400:  #00D4FF;
+      --dark-bg:   #0A0F1A;
+    }
+
+    /* ─── Layout ───────────────────────────────────────────────── */
+    .layout {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* ─── Sidebar ──────────────────────────────────────────────── */
+    .sidebar {
+      width: 56px;
+      background: var(--slate-900);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: width 0.2s ease;
+      overflow: hidden;
+    }
+    .sidebar.expanded {
+      width: 220px;
+    }
+
+    /* Toggle button */
+    .sidebar-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 48px;
+      background: none;
+      border: none;
+      color: var(--slate-400);
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: color 0.15s;
+    }
+    .sidebar-toggle:hover {
+      color: #fff;
+    }
+    .sidebar-toggle .material-icons-round { font-size: 22px; }
+
+    .sidebar-brand {
+      padding: 4px 16px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .sidebar:not(.expanded) .sidebar-brand {
+      display: none;
+    }
+    .sidebar-brand h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .sidebar-brand span {
+      font-size: 11px;
+      color: var(--slate-400);
+      font-weight: 400;
+    }
+    .sidebar-nav {
+      flex: 1;
+      padding: 8px 0;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--slate-400);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .sidebar:not(.expanded) .nav-item {
+      justify-content: center;
+      padding: 10px 0;
+      border-left-color: transparent;
+      gap: 0;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.04);
+      color: var(--slate-300);
+    }
+    .nav-item.active {
+      color: #fff;
+      background: rgba(59,130,246,0.12);
+      border-left-color: var(--blue-500);
+    }
+    .sidebar:not(.expanded) .nav-item.active {
+      border-left-color: transparent;
+      background: rgba(59,130,246,0.18);
+      border-radius: 0;
+    }
+    .nav-item .material-icons-round { font-size: 20px; flex-shrink: 0; }
+    .nav-item .nav-label {
+      overflow: hidden;
+      transition: opacity 0.15s;
+    }
+    .sidebar:not(.expanded) .nav-item .nav-label {
+      width: 0;
+      opacity: 0;
+    }
+
+    .sidebar-footer {
+      padding: 12px 16px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .sidebar:not(.expanded) .sidebar-footer {
+      display: none;
+    }
+    .connection-cfg {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .connection-cfg input {
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      color: #fff;
+      outline: none;
+    }
+    .connection-cfg input:focus {
+      border-color: var(--blue-500);
+    }
+    .btn-connect {
+      width: 100%;
+      padding: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-connect.disconnected {
+      background: var(--blue-500);
+      color: #fff;
+    }
+    .btn-connect.disconnected:hover { background: var(--blue-600); }
+    .btn-connect.connected {
+      background: rgba(239,68,68,0.15);
+      color: var(--red-500);
+    }
+    .btn-connect.connected:hover { background: rgba(239,68,68,0.25); }
+
+    /* ─── Main content ─────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+    .topbar {
+      height: 52px;
+      background: #fff;
+      border-bottom: 1px solid var(--slate-200);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .topbar-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* ─── Screen container ─────────────────────────────────────── */
+    .screen-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ─── Cards ────────────────────────────────────────────────── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--slate-200);
+      margin-bottom: 16px;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--slate-200);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-header .material-icons-round {
+      font-size: 20px;
+      color: var(--blue-500);
+    }
+    .card-body { padding: 20px; }
+
+    /* ─── Form fields ──────────────────────────────────────────── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .form-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-group label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--slate-600);
+    }
+    .form-group label .req { color: var(--red-500); }
+    .form-field {
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      border: 1px solid var(--slate-200);
+      border-radius: 8px;
+      background: var(--slate-50);
+      color: var(--slate-800);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.2s;
+    }
+    .form-field:focus {
+      border-color: var(--blue-500);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    .form-field.highlighted {
+      border-color: var(--blue-500);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.2);
+      animation: highlight-pulse 0.6s ease-in-out 2;
+    }
+    @keyframes highlight-pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(59,130,246,0.2); }
+      50% { box-shadow: 0 0 0 5px rgba(59,130,246,0.35); }
+    }
+    .form-field.filling {
+      border-color: var(--purple-500);
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+    }
+    select.form-field {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%2394A3B8' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+    }
+    textarea.form-field {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    /* ─── Buttons ───────────────────────────────────────────────── */
+    .form-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: flex-end;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn .material-icons-round { font-size: 16px; }
+    .btn-primary {
+      background: var(--blue-500);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-600); }
+    .btn-secondary {
+      background: var(--slate-100);
+      color: var(--slate-600);
+      border: 1px solid var(--slate-200);
+    }
+    .btn-secondary:hover { background: var(--slate-200); }
+    .btn-danger {
+      background: rgba(239,68,68,0.1);
+      color: var(--red-500);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.2); }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* ─── Dashboard stats ──────────────────────────────────────── */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: #fff;
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .stat-card .label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--slate-500);
+      margin-bottom: 4px;
+    }
+    .stat-card .value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--slate-800);
+    }
+    .stat-card .sub {
+      font-size: 11px;
+      color: var(--green-500);
+      margin-top: 2px;
+    }
+
+    /* ─── Table ─────────────────────────────────────────────────── */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .data-table th {
+      text-align: left;
+      padding: 10px 12px;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--slate-500);
+      border-bottom: 1px solid var(--slate-200);
+    }
+    .data-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--slate-100);
+      color: var(--slate-600);
+    }
+    .data-table tr:hover td {
+      background: var(--slate-50);
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-green { background: rgba(34,197,94,0.1); color: var(--green-500); }
+    .badge-amber { background: rgba(245,158,11,0.1); color: var(--amber-500); }
+    .badge-blue  { background: rgba(59,130,246,0.1); color: var(--blue-500); }
+
+    /* ─── FAB ──────────────────────────────────────────────────── */
+    .fab {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--blue-500);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.35);
+      transition: all 0.3s ease-in-out;
+      z-index: 1000;
+    }
+    .fab:hover { transform: scale(1.08); }
+    .fab .material-icons-round { font-size: 24px; }
+    .fab.disconnected { background: var(--slate-400); box-shadow: 0 4px 12px rgba(148,163,184,0.3); }
+    .fab.thinking { background: var(--purple-500); box-shadow: 0 4px 12px rgba(139,92,246,0.4); }
+    .fab.executing { background: var(--amber-500); box-shadow: 0 4px 12px rgba(245,158,11,0.4); }
+    .fab .spinner {
+      width: 24px; height: 24px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Chat panel ───────────────────────────────────────────── */
+    .chat-panel {
+      position: fixed;
+      bottom: 76px;
+      right: 16px;
+      width: 360px;
+      height: 640px;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      display: none;
+      flex-direction: column;
+      z-index: 999;
+      overflow: hidden;
+    }
+    .chat-panel.open { display: flex; }
+
+    /* Chat header */
+    .chat-header {
+      padding: 8px 12px;
+      background: var(--slate-800);
+      border-radius: 16px 16px 0 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 2px solid transparent;
+      transition: border-color 0.3s;
+    }
+    .chat-header.thinking { border-bottom-color: var(--purple-500); }
+    .chat-header.executing { border-bottom-color: var(--amber-500); }
+
+    .conn-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red-500);
+      flex-shrink: 0;
+    }
+    .conn-dot.connected {
+      background: var(--green-500);
+      box-shadow: 0 0 6px rgba(34,197,94,0.6);
+    }
+    .chat-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .chat-status-sep {
+      font-size: 13px;
+      color: var(--slate-300);
+    }
+    .chat-status-label {
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .chat-status-label.thinking { color: var(--purple-500); }
+    .chat-status-label.executing { color: var(--amber-500); }
+    .chat-status-label.idle { color: var(--slate-400); }
+
+    .chat-header-spacer { flex: 1; }
+    .chat-header-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      background: none;
+      color: var(--slate-300);
+      cursor: pointer;
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    .chat-header-btn:hover { background: rgba(255,255,255,0.1); }
+    .chat-header-btn .material-icons-round { font-size: 18px; }
+
+    /* Messages area */
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-track { background: transparent; }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--slate-300); border-radius: 2px; }
+
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--slate-400);
+      gap: 8px;
+    }
+    .chat-empty .material-icons-round { font-size: 32px; }
+    .chat-empty span { font-size: 13px; }
+
+    .msg-row {
+      display: flex;
+      max-width: 280px;
+    }
+    .msg-row.user {
+      align-self: flex-end;
+    }
+    .msg-row.agent {
+      align-self: flex-start;
+    }
+    .msg-bubble {
+      padding: 8px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .msg-row.user .msg-bubble {
+      background: var(--blue-500);
+      color: #fff;
+    }
+    .msg-row.agent .msg-bubble {
+      background: var(--slate-100);
+      color: var(--slate-800);
+    }
+    .msg-row.system .msg-bubble {
+      background: rgba(245,158,11,0.08);
+      color: var(--amber-500);
+      font-size: 11px;
+      font-style: italic;
+      max-width: 100%;
+      text-align: center;
+      align-self: center;
+    }
+
+    /* Chat input */
+    .chat-input-area {
+      padding: 6px 8px 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chat-input {
+      flex: 1;
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: 'Inter', sans-serif;
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      background: var(--slate-50);
+      color: var(--slate-800);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .chat-input:focus { border-color: var(--blue-500); }
+    .chat-input::placeholder { color: var(--slate-400); }
+    .chat-input:disabled { opacity: 0.5; }
+
+    .chat-send-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: none;
+      border-radius: 50%;
+      background: none;
+      color: var(--blue-500);
+      cursor: pointer;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    .chat-send-btn:hover:not(:disabled) { color: var(--blue-600); }
+    .chat-send-btn:disabled { color: var(--slate-300); cursor: not-allowed; }
+    .chat-send-btn .material-icons-round { font-size: 18px; }
+
+    /* ─── Status indicator pill ─────────────────────────────────── */
+    .status-pill {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .status-pill.visible { display: inline-flex; }
+    .status-pill .mini-spinner {
+      width: 12px; height: 12px;
+      border: 1.5px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .status-pill.thinking { background: rgba(139,92,246,0.12); color: var(--purple-500); }
+    .status-pill.executing { background: rgba(245,158,11,0.12); color: var(--amber-500); }
+
+    /* ─── Toast ─────────────────────────────────────────────────── */
+    .toast-container {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      animation: toast-in 0.3s ease-out;
+      min-width: 250px;
+    }
+    .toast.info    { background: var(--blue-500); }
+    .toast.success { background: var(--green-500); }
+    .toast.warning { background: var(--amber-500); }
+    .toast.error   { background: var(--red-500); }
+    .toast .material-icons-round { font-size: 18px; }
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(40px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .toast.removing {
+      animation: toast-out 0.25s ease-in forwards;
+    }
+    @keyframes toast-out {
+      to { opacity: 0; transform: translateX(40px); }
+    }
+
+    /* ─── Confirm dialog ───────────────────────────────────────── */
+    .dialog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+    }
+    .dialog-overlay.open { display: flex; }
+    .dialog-box {
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      max-width: 380px;
+      width: 90%;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+      animation: dialog-in 0.2s ease-out;
+    }
+    @keyframes dialog-in {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .dialog-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .dialog-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: rgba(59,130,246,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dialog-icon .material-icons-round { font-size: 18px; color: var(--blue-500); }
+    .dialog-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .dialog-content {
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--slate-500);
+      margin-bottom: 20px;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    .dialog-btn-cancel {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
+      color: var(--slate-500);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .dialog-btn-cancel:hover { background: var(--slate-100); }
+    .dialog-btn-confirm {
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      color: #fff;
+      background: var(--blue-500);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .dialog-btn-confirm:hover { background: var(--blue-600); }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- ─── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="Expandir menu">
+        <span class="material-icons-round" id="sidebarToggleIcon">menu</span>
+      </button>
+      <div class="sidebar-brand">
+        <h2>Emissor NFS-e</h2>
+        <span>ACP Demo</span>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-item active" data-screen="dashboard" onclick="navigateLocal('dashboard')">
+          <span class="material-icons-round">dashboard</span>
+          <span class="nav-label">Dashboard</span>
+        </div>
+        <div class="nav-item" data-screen="tomadores" onclick="navigateLocal('tomadores')">
+          <span class="material-icons-round">people</span>
+          <span class="nav-label">Tomadores</span>
+        </div>
+        <div class="nav-item" data-screen="nfse" onclick="navigateLocal('nfse')">
+          <span class="material-icons-round">receipt_long</span>
+          <span class="nav-label">Emitir NFS-e</span>
+        </div>
+        <div class="nav-item" data-screen="ordem" onclick="navigateLocal('ordem')">
+          <span class="material-icons-round">assignment</span>
+          <span class="nav-label">Ordem de Serviço</span>
+        </div>
+        <div class="nav-item" data-screen="config" onclick="navigateLocal('config')">
+          <span class="material-icons-round">settings</span>
+          <span class="nav-label">Configurações</span>
+        </div>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="connection-cfg">
+          <input type="text" id="serverUrl" value="ws://localhost:__ACP_WS_PORT__/connect" placeholder="WebSocket URL">
+          <button class="btn-connect disconnected" id="connectBtn" onclick="toggleConnection()">
+            Conectar
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── Main ────────────────────────────────────────── -->
+    <div class="main">
+      <div class="topbar">
+        <span class="topbar-title" id="topbarTitle">Dashboard</span>
+        <div class="topbar-actions">
+          <div class="status-pill" id="statusPill">
+            <div class="mini-spinner"></div>
+            <span id="statusPillLabel"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="screen-container">
+        <!-- Dashboard -->
+        <div class="screen active" id="screen-dashboard">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="label">Notas emitidas</div>
+              <div class="value">1.284</div>
+              <div class="sub">+12% este mês</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Tomadores</div>
+              <div class="value">347</div>
+              <div class="sub">+5 novos</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Faturamento</div>
+              <div class="value">R$ 89.4k</div>
+              <div class="sub">+8% este mês</div>
+            </div>
+            <div class="stat-card">
+              <div class="label">Pendentes</div>
+              <div class="value">12</div>
+              <div class="sub" style="color:var(--amber-500)">3 vencidas</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <span class="material-icons-round">history</span>
+              <h3>Últimas notas</h3>
+            </div>
+            <div class="card-body" style="padding:0;">
+              <table class="data-table">
+                <thead>
+                  <tr><th>Número</th><th>Tomador</th><th>Valor</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>NFS-e 1284</td><td>Acme Ltda</td><td>R$ 3.500,00</td><td><span class="badge badge-green">Emitida</span></td></tr>
+                  <tr><td>NFS-e 1283</td><td>Tech Corp</td><td>R$ 12.000,00</td><td><span class="badge badge-green">Emitida</span></td></tr>
+                  <tr><td>NFS-e 1282</td><td>João Silva ME</td><td>R$ 850,00</td><td><span class="badge badge-amber">Pendente</span></td></tr>
+                  <tr><td>NFS-e 1281</td><td>Maria Santos</td><td>R$ 2.200,00</td><td><span class="badge badge-green">Emitida</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tomadores -->
+        <div class="screen" id="screen-tomadores">
+          <div class="card">
+            <div class="card-header">
+              <span class="material-icons-round">person_add</span>
+              <h3>Cadastro de Tomador</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label>Nome / Razão Social <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-tomador-nome" data-screen="tomadores" data-field="nome" placeholder="Nome completo ou razão social">
+                </div>
+                <div class="form-group">
+                  <label>CPF / CNPJ <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-tomador-cpf_cnpj" data-screen="tomadores" data-field="cpf_cnpj" placeholder="000.000.000-00">
+                </div>
+                <div class="form-group">
+                  <label>E-mail</label>
+                  <input class="form-field" type="email" id="field-tomador-email" data-screen="tomadores" data-field="email" placeholder="email@exemplo.com">
+                </div>
+                <div class="form-group">
+                  <label>Telefone</label>
+                  <input class="form-field" type="text" id="field-tomador-telefone" data-screen="tomadores" data-field="telefone" placeholder="(00) 00000-0000">
+                </div>
+                <div class="form-group">
+                  <label>CEP</label>
+                  <input class="form-field" type="text" id="field-tomador-cep" data-screen="tomadores" data-field="cep" placeholder="00000-000">
+                </div>
+                <div class="form-group full">
+                  <label>Endereço</label>
+                  <input class="form-field" type="text" id="field-tomador-endereco" data-screen="tomadores" data-field="endereco" placeholder="Rua, número, complemento">
+                </div>
+                <div class="form-group">
+                  <label>Cidade</label>
+                  <input class="form-field" type="text" id="field-tomador-cidade" data-screen="tomadores" data-field="cidade" placeholder="Cidade">
+                </div>
+                <div class="form-group">
+                  <label>UF</label>
+                  <select class="form-field" id="field-tomador-uf" data-screen="tomadores" data-field="uf">
+                    <option value="">Selecione</option>
+                    <option>AC</option><option>AL</option><option>AP</option><option>AM</option>
+                    <option>BA</option><option>CE</option><option>DF</option><option>ES</option>
+                    <option>GO</option><option>MA</option><option>MT</option><option>MS</option>
+                    <option>MG</option><option>PA</option><option>PB</option><option>PR</option>
+                    <option>PE</option><option>PI</option><option>RJ</option><option>RN</option>
+                    <option>RS</option><option>RO</option><option>RR</option><option>SC</option>
+                    <option>SP</option><option>SE</option><option>TO</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-secondary" data-screen="tomadores" data-action="cancel_tomador" onclick="handleAction('tomadores','cancel_tomador')">
+                  <span class="material-icons-round">close</span> Cancelar
+                </button>
+                <button class="btn btn-primary" data-screen="tomadores" data-action="save_tomador" onclick="handleAction('tomadores','save_tomador')">
+                  <span class="material-icons-round">save</span> Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Emitir NFS-e -->
+        <div class="screen" id="screen-nfse">
+          <div class="card">
+            <div class="card-header">
+              <span class="material-icons-round">receipt_long</span>
+              <h3>Emitir NFS-e</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label>Tomador <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-nfse-tomador" data-screen="nfse" data-field="tomador" placeholder="Buscar tomador por nome ou CPF/CNPJ">
+                </div>
+                <div class="form-group">
+                  <label>Código do Serviço <span class="req">*</span></label>
+                  <select class="form-field" id="field-nfse-servico" data-screen="nfse" data-field="servico">
+                    <option value="">Selecione o serviço</option>
+                    <option value="1.01">1.01 - Análise e desenvolvimento de sistemas</option>
+                    <option value="1.02">1.02 - Programação</option>
+                    <option value="1.03">1.03 - Processamento de dados</option>
+                    <option value="1.04">1.04 - Elaboração de programas</option>
+                    <option value="1.05">1.05 - Licenciamento de software</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Valor do Serviço <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-nfse-valor" data-screen="nfse" data-field="valor" placeholder="R$ 0,00">
+                </div>
+                <div class="form-group">
+                  <label>Data de Competência</label>
+                  <input class="form-field" type="date" id="field-nfse-data" data-screen="nfse" data-field="data">
+                </div>
+                <div class="form-group">
+                  <label>Alíquota ISS (%)</label>
+                  <input class="form-field" type="text" id="field-nfse-aliquota" data-screen="nfse" data-field="aliquota" value="5.00" placeholder="0.00">
+                </div>
+                <div class="form-group full">
+                  <label>Discriminação do Serviço <span class="req">*</span></label>
+                  <textarea class="form-field" id="field-nfse-descricao" data-screen="nfse" data-field="descricao" placeholder="Descreva o serviço prestado..."></textarea>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-secondary" data-screen="nfse" data-action="cancel_nfse" onclick="handleAction('nfse','cancel_nfse')">
+                  <span class="material-icons-round">close</span> Cancelar
+                </button>
+                <button class="btn btn-primary" data-screen="nfse" data-action="emit_nfse" onclick="handleAction('nfse','emit_nfse')">
+                  <span class="material-icons-round">send</span> Emitir NFS-e
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ordem de Serviço -->
+        <div class="screen" id="screen-ordem">
+          <div class="card">
+            <div class="card-header">
+              <span class="material-icons-round">assignment</span>
+              <h3>Ordem de Serviço</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Nº da OS <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-ordem-numero_os" data-screen="ordem" data-field="numero_os" placeholder="OS-0000">
+                </div>
+                <div class="form-group">
+                  <label>Prioridade <span class="req">*</span></label>
+                  <select class="form-field" id="field-ordem-prioridade" data-screen="ordem" data-field="prioridade">
+                    <option value="">Selecione</option>
+                    <option value="baixa">Baixa</option>
+                    <option value="media">Média</option>
+                    <option value="alta">Alta</option>
+                    <option value="critica">Crítica</option>
+                  </select>
+                </div>
+                <div class="form-group full">
+                  <label>Cliente <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-ordem-cliente_nome" data-screen="ordem" data-field="cliente_nome" placeholder="Nome ou razão social do cliente">
+                </div>
+                <div class="form-group">
+                  <label>CPF/CNPJ do Cliente <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-ordem-cliente_cpf_cnpj" data-screen="ordem" data-field="cliente_cpf_cnpj" placeholder="000.000.000-00">
+                </div>
+                <div class="form-group">
+                  <label>Telefone do Cliente</label>
+                  <input class="form-field" type="text" id="field-ordem-cliente_telefone" data-screen="ordem" data-field="cliente_telefone" placeholder="(00) 00000-0000">
+                </div>
+                <div class="form-group">
+                  <label>E-mail do Cliente</label>
+                  <input class="form-field" type="email" id="field-ordem-cliente_email" data-screen="ordem" data-field="cliente_email" placeholder="email@exemplo.com">
+                </div>
+                <div class="form-group">
+                  <label>Responsável Técnico <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-ordem-responsavel" data-screen="ordem" data-field="responsavel" placeholder="Nome do técnico">
+                </div>
+                <div class="form-group">
+                  <label>Tipo de Serviço <span class="req">*</span></label>
+                  <select class="form-field" id="field-ordem-tipo_servico" data-screen="ordem" data-field="tipo_servico">
+                    <option value="">Selecione</option>
+                    <option value="desenvolvimento">Desenvolvimento de Software</option>
+                    <option value="consultoria">Consultoria Técnica</option>
+                    <option value="infraestrutura">Infraestrutura / DevOps</option>
+                    <option value="manutencao">Manutenção e Suporte</option>
+                    <option value="design">Design UX/UI</option>
+                    <option value="dados">Engenharia de Dados</option>
+                    <option value="seguranca">Segurança da Informação</option>
+                    <option value="treinamento">Treinamento</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Data de Abertura <span class="req">*</span></label>
+                  <input class="form-field" type="date" id="field-ordem-data_abertura" data-screen="ordem" data-field="data_abertura">
+                </div>
+                <div class="form-group">
+                  <label>Previsão de Entrega <span class="req">*</span></label>
+                  <input class="form-field" type="date" id="field-ordem-data_previsao" data-screen="ordem" data-field="data_previsao">
+                </div>
+                <div class="form-group">
+                  <label>Horas Estimadas</label>
+                  <input class="form-field" type="number" id="field-ordem-horas_estimadas" data-screen="ordem" data-field="horas_estimadas" placeholder="0">
+                </div>
+                <div class="form-group">
+                  <label>Valor/Hora (R$)</label>
+                  <input class="form-field" type="text" id="field-ordem-valor_hora" data-screen="ordem" data-field="valor_hora" placeholder="R$ 0,00">
+                </div>
+                <div class="form-group">
+                  <label>Valor Total (R$) <span class="req">*</span></label>
+                  <input class="form-field" type="text" id="field-ordem-valor_total" data-screen="ordem" data-field="valor_total" placeholder="R$ 0,00">
+                </div>
+                <div class="form-group">
+                  <label>Forma de Pagamento</label>
+                  <select class="form-field" id="field-ordem-forma_pagamento" data-screen="ordem" data-field="forma_pagamento">
+                    <option value="">Selecione</option>
+                    <option value="boleto">Boleto Bancário</option>
+                    <option value="pix">PIX</option>
+                    <option value="cartao">Cartão de Crédito</option>
+                    <option value="transferencia">Transferência Bancária</option>
+                    <option value="parcelado">Parcelado</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Parcelas</label>
+                  <input class="form-field" type="number" id="field-ordem-parcelas" data-screen="ordem" data-field="parcelas" placeholder="1">
+                </div>
+                <div class="form-group full">
+                  <label>Descrição do Serviço <span class="req">*</span></label>
+                  <textarea class="form-field" id="field-ordem-descricao_servico" data-screen="ordem" data-field="descricao_servico" rows="3" placeholder="Descreva detalhadamente o serviço a ser executado..."></textarea>
+                </div>
+                <div class="form-group full">
+                  <label>Requisitos Técnicos</label>
+                  <textarea class="form-field" id="field-ordem-requisitos" data-screen="ordem" data-field="requisitos" rows="2" placeholder="Tecnologias, ambientes, integrações necessárias..."></textarea>
+                </div>
+                <div class="form-group full">
+                  <label>Observações</label>
+                  <textarea class="form-field" id="field-ordem-observacoes" data-screen="ordem" data-field="observacoes" rows="2" placeholder="Observações adicionais..."></textarea>
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-secondary" data-screen="ordem" data-action="cancel_ordem" onclick="handleAction('ordem','cancel_ordem')">
+                  <span class="material-icons-round">close</span> Cancelar
+                </button>
+                <button class="btn btn-secondary" data-screen="ordem" data-action="approve_ordem" onclick="handleAction('ordem','approve_ordem')">
+                  <span class="material-icons-round">check_circle</span> Aprovar
+                </button>
+                <button class="btn btn-primary" data-screen="ordem" data-action="save_ordem" onclick="handleAction('ordem','save_ordem')">
+                  <span class="material-icons-round">save</span> Salvar OS
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Configurações -->
+        <div class="screen" id="screen-config">
+          <div class="card">
+            <div class="card-header">
+              <span class="material-icons-round">business</span>
+              <h3>Dados da Empresa</h3>
+            </div>
+            <div class="card-body">
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label>Razão Social</label>
+                  <input class="form-field" type="text" id="field-config-razao_social" data-screen="config" data-field="razao_social" value="Minha Empresa Ltda" placeholder="Razão social">
+                </div>
+                <div class="form-group">
+                  <label>CNPJ</label>
+                  <input class="form-field" type="text" id="field-config-cnpj" data-screen="config" data-field="cnpj" value="12.345.678/0001-90" placeholder="00.000.000/0001-00">
+                </div>
+                <div class="form-group">
+                  <label>Inscrição Municipal</label>
+                  <input class="form-field" type="text" id="field-config-inscricao" data-screen="config" data-field="inscricao" placeholder="Número">
+                </div>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" data-screen="config" data-action="save_config" onclick="handleAction('config','save_config')">
+                  <span class="material-icons-round">save</span> Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── FAB ───────────────────────────────────────────── -->
+  <button class="fab disconnected" id="fab" onclick="toggleChat()">
+    <span class="material-icons-round" id="fabIcon">smart_toy</span>
+  </button>
+
+  <!-- ─── Chat panel ────────────────────────────────────── -->
+  <div class="chat-panel" id="chatPanel">
+    <div class="chat-header" id="chatHeader">
+      <div class="conn-dot" id="connDot"></div>
+      <span class="chat-title">Emma</span>
+      <span class="chat-status-sep" id="statusSep" style="display:none">·</span>
+      <span class="chat-status-label idle" id="chatStatusLabel"></span>
+      <div class="chat-header-spacer"></div>
+      <button class="chat-header-btn" onclick="copyChat()" title="Copiar">
+        <span class="material-icons-round">content_copy</span>
+      </button>
+      <button class="chat-header-btn" onclick="clearChat()" title="Limpar">
+        <span class="material-icons-round">delete_outline</span>
+      </button>
+      <button class="chat-header-btn" onclick="toggleChat()" title="Fechar">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty" id="chatEmpty">
+        <span class="material-icons-round">chat_bubble_outline</span>
+        <span>Conecte-se para conversar</span>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="chatInput" type="text" placeholder="Digite uma mensagem..."
+             disabled onkeydown="if(event.key==='Enter')sendMessage()">
+      <button class="chat-send-btn" id="chatSendBtn" disabled onclick="sendMessage()">
+        <span class="material-icons-round">send</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ─── Toast container ───────────────────────────────── -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- ─── Confirm dialog ────────────────────────────────── -->
+  <div class="dialog-overlay" id="dialogOverlay">
+    <div class="dialog-box">
+      <div class="dialog-title-row">
+        <div class="dialog-icon">
+          <span class="material-icons-round">help_outline</span>
+        </div>
+        <span class="dialog-title">Confirmar ação</span>
+      </div>
+      <div class="dialog-content" id="dialogContent">Deseja continuar?</div>
+      <div class="dialog-actions">
+        <button class="dialog-btn-cancel" onclick="respondConfirm(false)">Cancelar</button>
+        <button class="dialog-btn-confirm" onclick="respondConfirm(true)">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="test-app.js?v=6"></script>
+</body>
+</html>
