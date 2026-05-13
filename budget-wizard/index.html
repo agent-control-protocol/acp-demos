@@ -487,10 +487,10 @@ function executeCommand(msg) {
           addSystemMsg("Action: " + action.action);
           if (action.action === "next_step") {
             const next = { income: "expenses", expenses: "savings", savings: "summary" }[cur];
-            if (next) switchScreen(next);
+            if (next) setTimeout(() => switchScreen(next), 800);
           } else if (action.action === "back") {
             const prev = { expenses: "income", savings: "expenses", summary: "savings" }[cur];
-            if (prev) switchScreen(prev);
+            if (prev) setTimeout(() => switchScreen(prev), 800);
           } else if (action.action === "reset_budget") {
             document.querySelectorAll(".form-panel input, .form-panel select, .form-panel textarea").forEach(el => {
               if (!el.readOnly) el.value = "";
