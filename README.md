@@ -1,3 +1,4 @@
+<!-- curadoria: kind="entry" keywords="[arquitetura,, nfse]" summary="Cinco demos ACP, um deles emissor NFS-e em português" confirmed-useful="2026-09-02" -->
 # ACP Demos
 
 A collection of five interactive demos showing AI agents controlling real web UIs through the [Agent Control Protocol (ACP)](https://github.com/agent-control-protocol/acp).
